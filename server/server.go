@@ -1,0 +1,126 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net"
+	"sync"
+)
+
+const defaultPort = 6379
+
+type Config struct {
+	ListenAddr string
+}
+
+type Server struct {
+	Config
+	ln    net.Listener
+	mu    sync.RWMutex
+	peers map[*Peer]bool
+	msgCh chan Message
+	kvs   *KeyValueStorage
+}
+
+func NewServer(cfg Config) *Server {
+	if cfg.ListenAddr == "" {
+		cfg.ListenAddr = fmt.Sprintf(":%d", defaultPort)
+	}
+
+	return &Server{
+		Config: cfg,
+		peers:  make(map[*Peer]bool),
+		msgCh:  make(chan Message), // TODO: make this buffered to improve performance
+		kvs:    NewKeyValueStorage(),
+	}
+}
+
+func (s *Server) Start(ctx context.Context) error {
+	ln, err := net.Listen("tcp", s.ListenAddr)
+	if err != nil {
+		slog.Error("failed to listen for incoming tcp connections", "error", err)
+		return err
+	}
+	s.ln = ln
+	slog.Info("listening tcp connection", "port:", s.ListenAddr)
+
+	go s.watchMessages(ctx)
+	return s.acceptLoop()
+}
+
+func (s *Server) acceptLoop() error {
+	for {
+		conn, err := s.ln.Accept()
+		if err != nil {
+			slog.Error("failed to accept incoming connection", "error", err)
+			continue
+		}
+		go s.handleConn(conn)
+	}
+}
+
+func (s *Server) handleConn(conn net.Conn) {
+	peer := NewPeer(conn, s.msgCh)
+	s.Add(peer)
+
+	slog.Info("new peer connected", "remoteAddr", conn.RemoteAddr(), "localAddr", conn.LocalAddr())
+
+	if err := peer.Read(); err != nil {
+		slog.Error("failed to read from peer", "error", err, "remoteAddr", conn.RemoteAddr(), "localAddr", conn.LocalAddr())
+	}
+}
+
+func (s *Server) Add(p *Peer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.peers[p] = true
+}
+
+func (s *Server) Del(p *Peer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.peers, p)
+}
+
+func (s *Server) watchMessages(ctx context.Context) {
+	for {
+		select {
+		case msg := <-s.msgCh:
+			if err := s.handleMessage(msg); err != nil {
+				slog.Error("failed to handle message", "error", err)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *Server) handleMessage(msg Message) error {
+	// TODO: This msg.peer is bothering me. Doesnt make sense to access the peer using the msg.
+	// rethink this later
+	switch cmd := msg.cmd.(type) {
+	case SetCommand:
+		return s.kvs.Set(cmd.key, cmd.val)
+	case GetCommand:
+		val, err := s.kvs.Get(cmd.key)
+		if err != nil {
+			return err
+		}
+		_, err = msg.peer.Send(val)
+		return err
+
+	case PingCommand:
+		_, err := msg.peer.Send([]byte("PONG"))
+		if err != nil {
+			slog.Error("failed to write message PONG to the client")
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown command type")
+	}
+
+	return nil
+}
