@@ -1,4 +1,6 @@
-# In Memory Database from Scratch
+# Redis from Scratch
+
+// TODO: Improve this docs, now it's just random important notes.
 
 The goal is the create a redis like in-memory database. The idea is to explore how things are built from scratch to enhance the engineering skills.
 
@@ -33,6 +35,12 @@ In Golang, net.Conn.RemoteAddr() and net.Conn.LocalAddr() can be used to get pee
 ## RESP Protocol
 
 using the same from redis. using the resp library that is archived no be focus too much on it.
+
+
+## Inspirations
+https://github.com/tidwall/redcon
+https://app.codecrafters.io/
+https://www.youtube.com/watch?v=LMrxfWB6sbQ
 
 
 ## Future Features

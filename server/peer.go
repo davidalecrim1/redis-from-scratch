@@ -32,7 +32,7 @@ func (p *Peer) Read() error {
 			return err
 		}
 
-		slog.Debug("received data from peer", "bytesRead", n, "dataReceived", string(buf[:n]))
+		slog.Debug("received data from peer", "bytesRead", n)
 
 		msgBuf := make([]byte, n)
 		copy(msgBuf, buf[:n])

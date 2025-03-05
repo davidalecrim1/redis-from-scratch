@@ -16,11 +16,11 @@ const (
 type Command interface{}
 
 type SetCommand struct {
-	key, val string
+	key, val []byte
 }
 
 type GetCommand struct {
-	key string
+	key []byte
 }
 
 type PingCommand struct{}
@@ -44,13 +44,13 @@ func parseREPLtoCommand(raw string) (Command, error) {
 			switch val.String() {
 			case CommandSet:
 				cmd := SetCommand{
-					key: value.Array()[1].String(), // key
-					val: value.Array()[2].String(), // value
+					key: value.Array()[1].Bytes(), // key
+					val: value.Array()[2].Bytes(), // value
 				}
 				return cmd, nil
 			case CommandGet:
 				cmd := GetCommand{
-					key: value.Array()[1].String(), // key
+					key: value.Array()[1].Bytes(), // key
 				}
 				return cmd, nil
 			}

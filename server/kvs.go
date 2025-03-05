@@ -18,19 +18,19 @@ func NewKeyValueStorage() *KeyValueStorage {
 	}
 }
 
-func (kv *KeyValueStorage) Set(key, value string) error {
+func (kv *KeyValueStorage) Set(key, value []byte) error {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 
-	kv.data[key] = []byte(value)
+	kv.data[string(key)] = []byte(value)
 	return nil
 }
 
-func (kv *KeyValueStorage) Get(key string) ([]byte, error) {
+func (kv *KeyValueStorage) Get(key []byte) ([]byte, error) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
 
-	data, ok := kv.data[key]
+	data, ok := kv.data[string(key)]
 	if !ok {
 		return nil, ErrInvalidKey
 	}
