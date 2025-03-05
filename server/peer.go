@@ -38,6 +38,9 @@ func (p *Peer) Read() error {
 		msgBuf := make([]byte, n)
 		copy(msgBuf, buf[:n])
 
+		// TODO: maybe i can increase performance using a channel to dispatch the commands to a channel
+		// one by one to be handled instead of using only a message with multiple commands
+		// Think this latter
 		cmds, err := parseREPL(string(msgBuf))
 		slog.Debug("received a message", "message", string(msgBuf))
 
