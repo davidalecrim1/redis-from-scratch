@@ -17,6 +17,7 @@ func NewPeer(conn net.Conn, msgCh chan Message) *Peer {
 	}
 }
 
+// Reads until receives an `EOF` and returns nil
 func (p *Peer) Read() error {
 	buf := make([]byte, 1024)
 
@@ -37,11 +38,11 @@ func (p *Peer) Read() error {
 		msgBuf := make([]byte, n)
 		copy(msgBuf, buf[:n])
 
-		cmd, err := parseREPLtoCommand(string(msgBuf))
+		cmds, err := parseREPL(string(msgBuf))
 		slog.Debug("received a message", "message", string(msgBuf))
 
 		p.msgCh <- Message{
-			cmd:  cmd,
+			cmds: cmds,
 			peer: p,
 		}
 	}

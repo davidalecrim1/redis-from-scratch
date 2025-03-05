@@ -1,6 +1,6 @@
 package main
 
 type Message struct {
-	cmd  Command
+	cmds []Command
 	peer *Peer
 }

@@ -66,6 +66,8 @@ func (s *Server) handleConn(conn net.Conn) {
 
 	slog.Info("new peer connected", "remoteAddr", conn.RemoteAddr(), "localAddr", conn.LocalAddr())
 
+	// TODO: Should I close the connecton one I reach the EOF of the connection?
+	// Think this later
 	if err := peer.Read(); err != nil {
 		slog.Error("failed to read from peer", "error", err, "remoteAddr", conn.RemoteAddr(), "localAddr", conn.LocalAddr())
 	}
@@ -101,25 +103,36 @@ func (s *Server) watchMessages(ctx context.Context) {
 func (s *Server) handleMessage(msg Message) error {
 	// TODO: This msg.peer is bothering me. Doesnt make sense to access the peer using the msg.
 	// rethink this later
-	switch cmd := msg.cmd.(type) {
-	case SetCommand:
-		return s.kvs.Set(cmd.key, cmd.val)
-	case GetCommand:
-		val, err := s.kvs.Get(cmd.key)
-		if err != nil {
-			return err
-		}
-		_, err = msg.peer.Send(val)
-		return err
 
-	case PingCommand:
-		_, err := msg.peer.Send([]byte("PONG"))
-		if err != nil {
-			slog.Error("failed to write message PONG to the client")
-			return err
+	for _, cmd := range msg.cmds {
+		switch receivedCmd := cmd.(type) {
+		case SetCommand:
+			err := s.kvs.Set(receivedCmd.key, receivedCmd.val)
+			if err != nil {
+				slog.Error("received an error while 'setting' a value from KVS", "error", err)
+				return err
+			}
+
+		case GetCommand:
+			val, err := s.kvs.Get(receivedCmd.key)
+			if err != nil {
+				slog.Error("received an error while 'getting' a value from KVS", "error", err)
+				return err
+			}
+			_, err = msg.peer.Send(val)
+			if err != nil {
+				return err
+			}
+
+		case PingCommand:
+			_, err := msg.peer.Send([]byte("PONG"))
+			if err != nil {
+				return err
+			}
+
+		default:
+			return fmt.Errorf("unknown command type")
 		}
-	default:
-		return fmt.Errorf("unknown command type")
 	}
 
 	return nil

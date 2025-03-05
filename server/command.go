@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 
 	"github.com/tidwall/resp"
 )
@@ -27,44 +28,51 @@ type PingCommand struct{}
 
 var ErrUnknownCommand = fmt.Errorf("unknown command received")
 
-func parseREPLtoCommand(raw string) (Command, error) {
+func parseREPL(raw string) ([]Command, error) {
+	cmds := make([]Command, 0, 1) // at least one command should be received
 	rd := resp.NewReader(bytes.NewBufferString(raw))
 
-	value, _, err := rd.ReadValue()
-	if err != nil {
-		panic(err)
-	}
+	for {
+		value, _, err := rd.ReadValue()
 
-	if value.Type() == resp.Array {
-		if len(value.Array()) != 3 {
-			return nil, ErrUnknownCommand
+		if err != nil && err.Error() == "EOF" {
+			return cmds, nil
 		}
 
-		for _, val := range value.Array() {
-			switch val.String() {
-			case CommandSet:
-				cmd := SetCommand{
-					key: value.Array()[1].Bytes(), // key
-					val: value.Array()[2].Bytes(), // value
+		if err != nil {
+			slog.Error("received an unexpected error", "error", err)
+			panic(err)
+		}
+
+		if value.Type() == resp.Array {
+			if len(value.Array()) != 3 {
+				return nil, ErrUnknownCommand
+			}
+
+			for _, val := range value.Array() {
+				switch val.String() {
+				case CommandSet:
+					cmd := SetCommand{
+						key: value.Array()[1].Bytes(), // key
+						val: value.Array()[2].Bytes(), // value
+					}
+					cmds = append(cmds, cmd)
+				case CommandGet:
+					cmd := GetCommand{
+						key: value.Array()[1].Bytes(), // key
+					}
+					cmds = append(cmds, cmd)
 				}
-				return cmd, nil
-			case CommandGet:
-				cmd := GetCommand{
-					key: value.Array()[1].Bytes(), // key
-				}
-				return cmd, nil
+			}
+		}
+
+		if value.Type() == resp.BulkString {
+			switch value.String() {
+			case CommandPing:
+				cmds = append(cmds, PingCommand{})
 			}
 		}
 	}
-
-	if value.Type() == resp.BulkString {
-		switch value.String() {
-		case CommandPing:
-			return PingCommand{}, nil
-		}
-	}
-
-	return nil, ErrUnknownCommand
 }
 
 func parseStringtoREPL(msg string) ([]byte, error) {
