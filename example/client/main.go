@@ -10,22 +10,20 @@ func main() {
 	ctx := context.Background()
 	client := NewClient(":6379")
 
-	for i := range 2 {
-		err := client.Set(ctx, "key"+strconv.Itoa(i), "value"+strconv.Itoa(i))
+	for i := range 10 {
+		key, value := "key"+strconv.Itoa(i), "value"+strconv.Itoa(i)
+		err := client.Set(ctx, key, value)
 		if err != nil {
 			panic(err)
 		}
-
-		// time.Sleep(1 * time.Second)
+		log.Printf("send the key '%v' and value '%v'\n", key, value)
 	}
 
-	for i := range 4 {
+	for i := range 10 {
 		resp, err := client.Ping(ctx)
 		if err != nil {
 			panic(err)
 		}
-
-		// time.Sleep(1 * time.Second)
-		log.Printf("ping %d response: %v\n", i, resp)
+		log.Printf("ping '%d' response: '%v'\n", i, resp)
 	}
 }
