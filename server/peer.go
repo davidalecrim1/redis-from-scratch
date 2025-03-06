@@ -1,19 +1,22 @@
 package main
 
 import (
+	"io"
 	"log/slog"
 	"net"
 )
 
 type Peer struct {
 	conn  net.Conn
-	msgCh chan Message
+	msgCh chan<- Message
+	delCh chan<- *Peer
 }
 
-func NewPeer(conn net.Conn, msgCh chan Message) *Peer {
+func NewPeer(conn net.Conn, msgCh chan<- Message, delCh chan<- *Peer) *Peer {
 	return &Peer{
 		conn:  conn,
 		msgCh: msgCh,
+		delCh: delCh,
 	}
 }
 
@@ -23,8 +26,9 @@ func (p *Peer) Read() error {
 
 	for {
 		n, err := p.conn.Read(buf)
-		if err != nil && err.Error() == "EOF" {
+		if err != nil && err == io.EOF {
 			slog.Info("reached the EOF of the current connection", "remoteAddr", p.conn.RemoteAddr())
+			p.delCh <- p
 			return nil
 		}
 
@@ -74,4 +78,9 @@ func (p *Peer) Send(msg []byte) (int, error) {
 	}
 
 	return p.conn.Write(b)
+}
+
+func (p *Peer) Close() error {
+	slog.Debug("closing the connection on peer", "remoteAddr", p.conn.RemoteAddr())
+	return p.conn.Close()
 }

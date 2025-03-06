@@ -124,3 +124,7 @@ func (c *Client) Get(ctx context.Context, key string) ([]byte, error) {
 
 	return value.Bytes(), nil
 }
+
+func (c *Client) Close() error {
+	return c.conn.Close()
+}

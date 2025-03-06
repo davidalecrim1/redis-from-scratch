@@ -9,6 +9,7 @@ import (
 func main() {
 	ctx := context.Background()
 	client := NewClient(":6379")
+	defer client.Close()
 
 	for i := range 10 {
 		key, value := "key"+strconv.Itoa(i), "value"+strconv.Itoa(i)
