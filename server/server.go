@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -115,6 +116,15 @@ func (s *Server) handleMessage(msg Message) error {
 
 		case GetCommand:
 			val, err := s.kvs.Get(receivedCmd.key)
+			// TODO: Do I actually need to return an error here if the key is invalid?
+			if err != nil && errors.Is(err, ErrKeyDoesntExist) {
+				_, er := msg.peer.Send(nil)
+				if er != nil {
+					return er
+				}
+				return nil
+			}
+
 			if err != nil {
 				slog.Error("received an error while 'getting' a value from KVS", "error", err)
 				return err

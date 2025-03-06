@@ -92,3 +92,35 @@ func (c *Client) readPong(_ context.Context) (string, error) {
 
 	return value.String(), nil
 }
+
+func (c *Client) Get(ctx context.Context, key string) ([]byte, error) {
+	c.MustCreateConn()
+
+	var writeBuf bytes.Buffer
+	wr := resp.NewWriter(&writeBuf)
+	err := wr.WriteArray([]resp.Value{
+		resp.StringValue("GET"),
+		resp.StringValue(key),
+	})
+	if err != nil {
+		return nil, err
+	}
+	_, err = io.Copy(c.conn, &writeBuf)
+
+	readBuf := make([]byte, 1024)
+	n, err := c.conn.Read(readBuf)
+	if err != nil {
+		return nil, err
+	}
+
+	respBuf := bytes.NewBuffer(readBuf[:n])
+	rr := resp.NewReader(respBuf)
+
+	// TODO: Do i need to worry here about multiple resp values? need to check
+	value, _, err := rr.ReadValue()
+	if err != nil {
+		return nil, err
+	}
+
+	return value.Bytes(), nil
+}

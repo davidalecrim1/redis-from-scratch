@@ -42,6 +42,11 @@ func (p *Peer) Read() error {
 		// one by one to be handled instead of using only a message with multiple commands
 		// Think this latter
 		cmds, err := parseREPL(string(msgBuf))
+		if err != nil {
+			slog.Error("received an error when parsing the REPL to command", "error", err)
+			return err
+		}
+
 		slog.Debug("received a message", "message", string(msgBuf))
 
 		p.msgCh <- Message{
@@ -52,7 +57,18 @@ func (p *Peer) Read() error {
 }
 
 func (p *Peer) Send(msg []byte) (int, error) {
-	b, err := parseStringtoREPL(string(msg))
+	var b []byte
+
+	if msg == nil {
+		b, err := parseNilToREPL()
+		if err != nil {
+			return -1, err
+		}
+
+		return p.conn.Write(b)
+	}
+
+	b, err := parseStringToREPL(string(msg))
 	if err != nil {
 		return -1, err
 	}

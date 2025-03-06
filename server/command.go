@@ -45,7 +45,7 @@ func parseREPL(raw string) ([]Command, error) {
 		}
 
 		if value.Type() == resp.Array {
-			if len(value.Array()) != 3 {
+			if len(value.Array()) != 2 && len(value.Array()) != 3 {
 				return nil, ErrUnknownCommand
 			}
 
@@ -75,7 +75,18 @@ func parseREPL(raw string) ([]Command, error) {
 	}
 }
 
-func parseStringtoREPL(msg string) ([]byte, error) {
+func parseNilToREPL() ([]byte, error) {
+	var buf bytes.Buffer
+	wr := resp.NewWriter(&buf)
+	err := wr.WriteNull()
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func parseStringToREPL(msg string) ([]byte, error) {
 	var buf bytes.Buffer
 	wr := resp.NewWriter(&buf)
 	err := wr.WriteString(msg)

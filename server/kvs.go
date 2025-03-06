@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-var ErrInvalidKey = fmt.Errorf("the provided key is invalid")
+var ErrKeyDoesntExist = fmt.Errorf("the provided key doesn't exist")
 
 type KeyValueStorage struct {
 	data map[string][]byte
@@ -32,7 +32,7 @@ func (kv *KeyValueStorage) Get(key []byte) ([]byte, error) {
 
 	data, ok := kv.data[string(key)]
 	if !ok {
-		return nil, ErrInvalidKey
+		return nil, ErrKeyDoesntExist
 	}
 
 	return data, nil
