@@ -44,6 +44,6 @@ https://www.youtube.com/watch?v=LMrxfWB6sbQ
 
 
 ## Future Features
-- Use the actual redis client to test the server
-- add the hello command from redis
+- clean up the server code to be better
 - remove the string from get and set to work with []byte on client and server
+- review features from code crafters
