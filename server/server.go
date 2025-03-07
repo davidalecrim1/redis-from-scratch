@@ -182,7 +182,14 @@ func (s *Server) handleMessage(msg Message) error {
 
 			_, err := msg.peer.Send(parseMaptoREPL(resp))
 			return err
+		case ClientCommand:
+			resp, err := parseStringToREPL("OK")
+			if err != nil {
+				return err
+			}
 
+			_, err = msg.peer.Send(resp)
+			return err
 		default:
 			return fmt.Errorf("unknown command type '%v'", cmd)
 		}

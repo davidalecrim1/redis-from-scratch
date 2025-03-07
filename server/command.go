@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/tidwall/resp"
 )
 
 const (
-	CommandSet   = "SET"
-	CommandGet   = "GET"
-	CommandPing  = "PING"
-	CommandHello = "hello"
+	CommandSet    = "set"
+	CommandGet    = "get"
+	CommandPing   = "ping"
+	CommandHello  = "hello"
+	CommandClient = "client"
 )
 
 type Command interface{}
@@ -28,6 +30,10 @@ type GetCommand struct {
 type PingCommand struct{}
 
 type HelloCommand struct {
+	value string
+}
+
+type ClientCommand struct {
 	value string
 }
 
@@ -50,12 +56,8 @@ func parseREPL(raw string) ([]Command, error) {
 		}
 
 		if value.Type() == resp.Array {
-			if len(value.Array()) != 2 && len(value.Array()) != 3 {
-				return nil, ErrUnknownCommand
-			}
-
 			for _, val := range value.Array() {
-				switch val.String() {
+				switch strings.ToLower(val.String()) {
 				case CommandSet:
 					cmd := SetCommand{
 						key: value.Array()[1].Bytes(), // key
@@ -67,10 +69,14 @@ func parseREPL(raw string) ([]Command, error) {
 						key: value.Array()[1].Bytes(), // key
 					}
 					cmds = append(cmds, cmd)
-
 				case CommandHello:
 					cmd := HelloCommand{
 						value: value.Array()[1].String(), // value
+					}
+					cmds = append(cmds, cmd)
+				case CommandClient:
+					cmd := ClientCommand{
+						value: value.Array()[1].String(), // ?
 					}
 					cmds = append(cmds, cmd)
 				}
@@ -78,7 +84,7 @@ func parseREPL(raw string) ([]Command, error) {
 		}
 
 		if value.Type() == resp.BulkString {
-			switch value.String() {
+			switch strings.ToLower(value.String()) {
 			case CommandPing:
 				cmds = append(cmds, PingCommand{})
 			}
@@ -110,6 +116,7 @@ func parseStringToREPL(msg string) ([]byte, error) {
 
 func parseMaptoREPL(msg map[string]string) []byte {
 	var buf bytes.Buffer
+	buf.WriteString("%" + fmt.Sprintf("%d\r\n", len(msg)))
 	wr := resp.NewWriter(&buf)
 
 	for k, v := range msg {
