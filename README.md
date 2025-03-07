@@ -1,49 +1,47 @@
 # Redis from Scratch
 
-// TODO: Improve this docs, now it's just random important notes.
+A Go Implementation of an In-Memory Key-Value Store.
 
-The goal is the create a redis like in-memory database. The idea is to explore how things are built from scratch to enhance the engineering skills.
-
-
-rename this to redis from scratch on my github
-
-## Documentation
-
-Redis works with raw tcp, so we are going to work with raw tcp too to have a great performance.
-
-## Peers
-
-In the context of TCP connections using Golang, a peer refers to any entity (client or server) that participates in a TCP connection. Each peer in a TCP connection has an associated IP address and port.
-
-Peers in a Client-Server Model:
-
-A client (peer) initiates a connection to a server (peer) using a TCP socket.
-The server listens for incoming connections and establishes a TCP session with the client.
-Both entities are considered peers because they are communicating directly over a bi-directional TCP stream.
-
-Each peer is identified by its IP address and port.
-
-Peers can be either clients or servers, but once connected, they both exchange data over the same TCP stream.
-
-In Golang, net.Conn.RemoteAddr() and net.Conn.LocalAddr() can be used to get peer addresses.
-
-## Folders
-- Client folder is for sample redis client like
-- Server is the redis server like memory database
+This project is a Go-based implementation of a simplified in-memory key-value store, inspired by the Redis database. It provides a foundational understanding of building a network server and handling the RESP protocol. This project is ideal for learning about networking, concurrency, and data structures in Go.
 
 
-## RESP Protocol
+## Technology Stack
 
-using the same from redis. using the resp library that is archived no be focus too much on it.
-
-
-## Inspirations
-https://github.com/tidwall/redcon
-https://app.codecrafters.io/
-https://www.youtube.com/watch?v=LMrxfWB6sbQ
+* **Programming Language:** Go (Go 1.23.1 or later recommended)
+* **Networking:** TCP sockets
+* **Serialization:** RESP (using the `github.com/tidwall/resp` library)
 
 
-## Future Features
-- clean up the server code to be better
-- remove the string from get and set to work with []byte on client and server
-- review features from code crafters
+## Project Structure
+
+The project is divided into two main components:
+`/server`: This is responsible for acting as a Redis server com in memory key value store.
+`example`: This has a custom made client and the `go-redis` client library showing how to interact with the server.
+
+
+## Getting Started
+
+1. Clone the repository
+2. Navigate to the directory:
+3. Run the client and server in two terminals:
+
+First Terminal:
+```bash
+make run-server
+```
+
+Second Terminal:
+```bash
+make run-client
+```
+
+
+## Architecture
+
+The server uses a simple in-memory map to store key-value pairs. The client interacts with the server via TCP sockets, sending commands and receiving responses using the RESP protocol. Error handling is implemented to ensure robustness.
+
+
+## Further Development
+- Improve code readability
+- Improve the in and out of the GET and SET methods to use []byte instead of string
+- See if there are other core features to add using Code Crafters
