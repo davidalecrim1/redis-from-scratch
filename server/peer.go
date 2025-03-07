@@ -4,10 +4,12 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"sync"
 )
 
 type Peer struct {
 	conn  net.Conn
+	wg    sync.WaitGroup
 	msgCh chan<- Message
 	delCh chan<- *Peer
 }
@@ -28,7 +30,7 @@ func (p *Peer) Read() error {
 		n, err := p.conn.Read(buf)
 		if err != nil && err == io.EOF {
 			slog.Info("reached the EOF of the current connection", "remoteAddr", p.conn.RemoteAddr())
-			p.delCh <- p
+			go p.Close()
 			return nil
 		}
 
@@ -53,6 +55,8 @@ func (p *Peer) Read() error {
 
 		slog.Debug("received a message", "message", string(msgBuf))
 
+		p.wg.Add(len(cmds)) // wait for each command to respond in write to close the connection
+
 		p.msgCh <- Message{
 			cmds: cmds,
 			peer: p,
@@ -61,26 +65,21 @@ func (p *Peer) Read() error {
 }
 
 func (p *Peer) Send(msg []byte) (int, error) {
-	var b []byte
+	defer p.wg.Done()
 
-	if msg == nil {
-		b, err := parseNilToREPL()
-		if err != nil {
-			return -1, err
-		}
-
-		return p.conn.Write(b)
-	}
-
-	b, err := parseStringToREPL(string(msg))
+	n, err := p.conn.Write(msg)
 	if err != nil {
-		return -1, err
+		return n, err
 	}
 
-	return p.conn.Write(b)
+	slog.Debug("sending data to the client", "msg", string(msg))
+	return n, err
 }
 
 func (p *Peer) Close() error {
+	p.wg.Wait()
+	err := p.conn.Close()
 	slog.Debug("closing the connection on peer", "remoteAddr", p.conn.RemoteAddr())
-	return p.conn.Close()
+	p.delCh <- p
+	return err
 }

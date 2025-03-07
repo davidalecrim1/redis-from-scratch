@@ -45,3 +45,4 @@ https://www.youtube.com/watch?v=LMrxfWB6sbQ
 
 ## Future Features
 - Use the actual redis client to test the server
+- add the hello command from redis

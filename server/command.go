@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	CommandSet  = "SET"
-	CommandGet  = "GET"
-	CommandPing = "PING"
+	CommandSet   = "SET"
+	CommandGet   = "GET"
+	CommandPing  = "PING"
+	CommandHello = "hello"
 )
 
 type Command interface{}
@@ -25,6 +26,10 @@ type GetCommand struct {
 }
 
 type PingCommand struct{}
+
+type HelloCommand struct {
+	value string
+}
 
 var ErrUnknownCommand = fmt.Errorf("unknown command received")
 
@@ -62,6 +67,12 @@ func parseREPL(raw string) ([]Command, error) {
 						key: value.Array()[1].Bytes(), // key
 					}
 					cmds = append(cmds, cmd)
+
+				case CommandHello:
+					cmd := HelloCommand{
+						value: value.Array()[1].String(), // value
+					}
+					cmds = append(cmds, cmd)
 				}
 			}
 		}
@@ -95,4 +106,16 @@ func parseStringToREPL(msg string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func parseMaptoREPL(msg map[string]string) []byte {
+	var buf bytes.Buffer
+	wr := resp.NewWriter(&buf)
+
+	for k, v := range msg {
+		wr.WriteString(k)
+		wr.WriteString(":" + v)
+	}
+
+	return buf.Bytes()
 }

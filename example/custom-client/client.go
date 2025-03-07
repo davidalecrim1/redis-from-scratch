@@ -1,9 +1,9 @@
+// Example using a custom made client
 package main
 
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net"
 
@@ -31,7 +31,7 @@ func (c *Client) MustCreateConn() {
 	}
 }
 
-func (c *Client) Set(ctx context.Context, key string, value string) error {
+func (c *Client) Set(ctx context.Context, key string, value string) (string, error) {
 	c.MustCreateConn()
 
 	var writeBuf bytes.Buffer
@@ -42,28 +42,37 @@ func (c *Client) Set(ctx context.Context, key string, value string) error {
 		resp.StringValue(value),
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	_, err = c.conn.Write(writeBuf.Bytes())
-	return err
+	if err != nil {
+		return "", err
+	}
+
+	msg, err := c.readString(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return msg, nil
 }
 
 func (c *Client) Ping(ctx context.Context) (string, error) {
 	c.MustCreateConn()
 
-	err := c.writePing(ctx)
+	err := c.writeString(ctx, "PING")
 	if err != nil {
 		return "", err
 	}
 
-	return c.readPong(ctx)
+	return c.readString(ctx)
 }
 
-func (c *Client) writePing(_ context.Context) error {
+func (c *Client) writeString(_ context.Context, value string) error {
 	var writeBuf bytes.Buffer
 	wr := resp.NewWriter(&writeBuf)
-	err := wr.WriteString("PING")
+	err := wr.WriteString(value)
 	if err != nil {
 		return err
 	}
@@ -72,28 +81,34 @@ func (c *Client) writePing(_ context.Context) error {
 	return err
 }
 
-func (c *Client) readPong(_ context.Context) (string, error) {
+func (c *Client) readString(ctx context.Context) (string, error) {
+	value, err := c.read(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	resp := value.String()
+	return resp, nil
+}
+
+func (c *Client) read(_ context.Context) (resp.Value, error) {
 	readBuf := make([]byte, 1024)
 	n, err := c.conn.Read(readBuf)
 	if err != nil {
-		return "", err
+		return resp.NullValue(), err
 	}
 
 	respBuf := bytes.NewBuffer(readBuf[:n])
-	rr := resp.NewReader(respBuf)
-	value, _, err := rr.ReadValue()
+	rd := resp.NewReader(respBuf)
+	value, _, err := rd.ReadValue()
 	if err != nil {
-		return "", err
+		return resp.NullValue(), err
 	}
 
-	if value.String() != "PONG" {
-		return "", fmt.Errorf("unexpected response: %v", value)
-	}
-
-	return value.String(), nil
+	return value, nil
 }
 
-func (c *Client) Get(ctx context.Context, key string) ([]byte, error) {
+func (c *Client) Get(ctx context.Context, key string) (string, error) {
 	c.MustCreateConn()
 
 	var writeBuf bytes.Buffer
@@ -103,28 +118,20 @@ func (c *Client) Get(ctx context.Context, key string) ([]byte, error) {
 		resp.StringValue(key),
 	})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	_, err = io.Copy(c.conn, &writeBuf)
-
-	readBuf := make([]byte, 1024)
-	n, err := c.conn.Read(readBuf)
-	if err != nil {
-		return nil, err
+	if _, err := io.Copy(c.conn, &writeBuf); err != nil {
+		return "", err
 	}
 
-	respBuf := bytes.NewBuffer(readBuf[:n])
-	rr := resp.NewReader(respBuf)
-
-	// TODO: Do i need to worry here about multiple resp values? need to check
-	value, _, err := rr.ReadValue()
-	if err != nil {
-		return nil, err
-	}
-
-	return value.Bytes(), nil
+	return c.readString(ctx)
 }
 
 func (c *Client) Close() error {
-	return c.conn.Close()
+	if c.conn != nil {
+		err := c.conn.Close()
+		c.conn = nil
+		return err
+	}
+	return nil
 }

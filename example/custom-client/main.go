@@ -13,12 +13,12 @@ func main() {
 
 	for i := range 10 {
 		key, value := "key"+strconv.Itoa(i), "value"+strconv.Itoa(i)
-		err := client.Set(ctx, key, value)
+		msg, err := client.Set(ctx, key, value)
 		if err != nil {
 			panic(err)
 		}
 
-		log.Printf("send the key '%v' and value '%v'\n", key, value)
+		log.Printf("send the key '%v' and value '%v'\n with the message '%v'", key, value, msg)
 
 		resp, err := client.Get(ctx, key)
 		if err != nil {

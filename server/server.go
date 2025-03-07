@@ -88,12 +88,6 @@ func (s *Server) AddPeer(p *Peer) {
 func (s *Server) DeletePeer(p *Peer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	err := p.Close()
-	if err != nil {
-		slog.Error("failed to close peer", "error", err)
-	}
-
 	delete(s.peers, p)
 }
 
@@ -120,7 +114,6 @@ func (s *Server) watchClose(ctx context.Context) {
 			}
 
 			s.DeletePeer(peer)
-			slog.Debug("a peer was deleted", "remoteAddr", peer.conn.RemoteAddr())
 			return
 		case <-ctx.Done():
 			slog.Debug("context was canceled, closing watchClose")
@@ -142,34 +135,56 @@ func (s *Server) handleMessage(msg Message) error {
 				return err
 			}
 
+			resp, err := parseStringToREPL("OK")
+			if err != nil {
+				return err
+			}
+
+			_, err = msg.peer.Send(resp)
+			return err
+
 		case GetCommand:
 			val, err := s.kvs.Get(receivedCmd.key)
 			// TODO: Do I actually need to return an error here if the key is invalid?
 			if err != nil && errors.Is(err, ErrKeyDoesntExist) {
-				_, er := msg.peer.Send(nil)
+				nilMsg, er := parseNilToREPL()
 				if er != nil {
 					return er
 				}
-				return nil
+
+				_, er = msg.peer.Send(nilMsg)
+				return er
 			}
 
 			if err != nil {
 				slog.Error("received an error while 'getting' a value from KVS", "error", err)
 				return err
 			}
-			_, err = msg.peer.Send(val)
+			resp, err := parseStringToREPL(string(val))
 			if err != nil {
 				return err
 			}
+			_, err = msg.peer.Send(resp)
+			return err
 
 		case PingCommand:
-			_, err := msg.peer.Send([]byte("PONG"))
+			resp, err := parseStringToREPL("PONG")
 			if err != nil {
 				return err
 			}
+			_, err = msg.peer.Send(resp)
+			return err
+
+		case HelloCommand:
+			resp := map[string]string{
+				"server": "redis",
+			}
+
+			_, err := msg.peer.Send(parseMaptoREPL(resp))
+			return err
 
 		default:
-			return fmt.Errorf("unknown command type")
+			return fmt.Errorf("unknown command type '%v'", cmd)
 		}
 	}
 
