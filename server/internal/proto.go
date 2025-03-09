@@ -15,9 +15,10 @@ const (
 	CommandPing   = "ping"
 	CommandHello  = "hello"
 	CommandClient = "client"
+	CommandEcho   = "echo"
 )
 
-func ParseREPL(raw string) ([]Command, error) {
+func ParseReplToCommand(raw string) ([]Command, error) {
 	cmds := make([]Command, 0, 1) // at least one command should be received
 	rd := resp.NewReader(bytes.NewBufferString(raw))
 
@@ -34,30 +35,35 @@ func ParseREPL(raw string) ([]Command, error) {
 		}
 
 		if value.Type() == resp.Array {
-			for _, val := range value.Array() {
-				switch strings.ToLower(val.String()) {
-				case CommandSet:
-					cmd := SetCommand{
-						Key: value.Array()[1].Bytes(), // key
-						Val: value.Array()[2].Bytes(), // value
-					}
-					cmds = append(cmds, cmd)
-				case CommandGet:
-					cmd := GetCommand{
-						Key: value.Array()[1].Bytes(), // key
-					}
-					cmds = append(cmds, cmd)
-				case CommandHello:
-					cmd := HelloCommand{
-						Value: value.Array()[1].String(), // value
-					}
-					cmds = append(cmds, cmd)
-				case CommandClient:
-					cmd := ClientCommand{
-						Value: value.Array()[1].String(), // ?
-					}
-					cmds = append(cmds, cmd)
+			firstArgument := strings.ToLower(value.Array()[0].String())
+			switch firstArgument {
+			case CommandSet:
+				cmd := SetCommand{
+					Key: value.Array()[1].Bytes(), // key
+					Val: value.Array()[2].Bytes(), // value
 				}
+				cmds = append(cmds, cmd)
+			case CommandGet:
+				cmd := GetCommand{
+					Key: value.Array()[1].Bytes(), // key
+				}
+				cmds = append(cmds, cmd)
+			case CommandHello:
+				cmd := HelloCommand{
+					Value: value.Array()[1].String(), // value
+				}
+				cmds = append(cmds, cmd)
+			case CommandClient:
+				cmd := ClientCommand{
+					Value: value.Array()[1].String(), // ?
+				}
+				cmds = append(cmds, cmd)
+			case CommandEcho:
+				cmds = append(cmds, EchoCommand{
+					Value: value.Array()[1].String(), // first argument after echo
+				})
+			default:
+				return nil, fmt.Errorf("command received: %v, err: %v", value.String(), ErrUnknownCommand)
 			}
 		}
 
@@ -65,6 +71,8 @@ func ParseREPL(raw string) ([]Command, error) {
 			switch strings.ToLower(value.String()) {
 			case CommandPing:
 				cmds = append(cmds, PingCommand{})
+			default:
+				return nil, fmt.Errorf("command received: %v, err: %v", value.String(), ErrUnknownCommand)
 			}
 		}
 	}

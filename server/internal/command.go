@@ -19,3 +19,7 @@ type HelloCommand struct {
 type ClientCommand struct {
 	Value string
 }
+
+type EchoCommand struct {
+	Value string
+}

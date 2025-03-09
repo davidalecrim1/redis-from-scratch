@@ -35,7 +35,7 @@ func NewServer(cfg Config) *Server {
 	return &Server{
 		Config: cfg,
 		peers:  make(map[*internal.Peer]bool),
-		msgCh:  make(chan internal.Message), // TODO: make this buffered to improve performance
+		msgCh:  make(chan internal.Message), // TODO: make this buffered to improve performance?
 		delCh:  make(chan *internal.Peer),
 		kvs:    internal.NewKeyValueStorage(),
 	}
@@ -73,8 +73,6 @@ func (s *Server) handleConn(conn net.Conn) {
 
 	slog.Info("new peer connected", "remoteAddr", conn.RemoteAddr(), "localAddr", conn.LocalAddr())
 
-	// TODO: Should I close the connecton one I reach the EOF of the connection?
-	// Think this later
 	if err := peer.Read(); err != nil {
 		slog.Error("failed to read from peer", "error", err, "remoteAddr", conn.RemoteAddr(), "localAddr", conn.LocalAddr())
 	}
@@ -146,8 +144,9 @@ func (s *Server) handleMessage(msg internal.Message) error {
 			return err
 
 		case internal.GetCommand:
-			val, err := s.kvs.Get(receivedCmd.Key)
 			// TODO: Do I actually need to return an error here if the key is invalid?
+			val, err := s.kvs.Get(receivedCmd.Key)
+
 			if err != nil && errors.Is(err, internal.ErrKeyDoesntExist) {
 				nilMsg, er := internal.ParseNilToREPL()
 				if er != nil {
@@ -184,6 +183,7 @@ func (s *Server) handleMessage(msg internal.Message) error {
 
 			_, err := msg.Peer.Send(internal.ParseMaptoREPL(resp))
 			return err
+
 		case internal.ClientCommand:
 			resp, err := internal.ParseStringToREPL("OK")
 			if err != nil {
@@ -192,6 +192,16 @@ func (s *Server) handleMessage(msg internal.Message) error {
 
 			_, err = msg.Peer.Send(resp)
 			return err
+
+		case internal.EchoCommand:
+			resp, err := internal.ParseStringToREPL(receivedCmd.Value)
+			if err != nil {
+				return err
+			}
+
+			_, err = msg.Peer.Send(resp)
+			return err
+
 		default:
 			return fmt.Errorf("unknown command type '%v'", cmd)
 		}

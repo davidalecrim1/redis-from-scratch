@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -32,6 +33,8 @@ func TestMain(m *testing.M) {
 		})
 	defer redisClient.Close()
 
+	slog.SetLogLoggerLevel(slog.LevelDebug)
+
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
@@ -56,7 +59,7 @@ func startRedisServer() *server.Server {
 func TestRedisOperations(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("Set and Get existing key", func(t *testing.T) {
+	t.Run("should be able to SET and GET a command of a valid key", func(t *testing.T) {
 		t.Parallel()
 
 		// Test SET operation
@@ -69,12 +72,20 @@ func TestRedisOperations(t *testing.T) {
 		assert.Equal(t, "test_value", val)
 	})
 
-	t.Run("Get non-existent key", func(t *testing.T) {
+	t.Run("should return nothing on GET command of non-existent key", func(t *testing.T) {
 		t.Parallel()
 
-		// Test GET operation for non-existent key
 		val, err := redisClient.Get(ctx, "non_existent_key").Result()
 		assert.ErrorIs(t, err, redis.Nil)
 		assert.Empty(t, val)
+	})
+
+	t.Run("Should return a REPL enconded message from ECHO command", func(t *testing.T) {
+		t.Parallel()
+
+		message := "hey"
+		resp, err := redisClient.Echo(ctx, message).Result()
+		assert.Nil(t, err)
+		assert.Equal(t, resp, message)
 	})
 }
