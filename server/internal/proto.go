@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"bytes"
@@ -17,29 +17,7 @@ const (
 	CommandClient = "client"
 )
 
-type Command interface{}
-
-type SetCommand struct {
-	key, val []byte
-}
-
-type GetCommand struct {
-	key []byte
-}
-
-type PingCommand struct{}
-
-type HelloCommand struct {
-	value string
-}
-
-type ClientCommand struct {
-	value string
-}
-
-var ErrUnknownCommand = fmt.Errorf("unknown command received")
-
-func parseREPL(raw string) ([]Command, error) {
+func ParseREPL(raw string) ([]Command, error) {
 	cmds := make([]Command, 0, 1) // at least one command should be received
 	rd := resp.NewReader(bytes.NewBufferString(raw))
 
@@ -60,23 +38,23 @@ func parseREPL(raw string) ([]Command, error) {
 				switch strings.ToLower(val.String()) {
 				case CommandSet:
 					cmd := SetCommand{
-						key: value.Array()[1].Bytes(), // key
-						val: value.Array()[2].Bytes(), // value
+						Key: value.Array()[1].Bytes(), // key
+						Val: value.Array()[2].Bytes(), // value
 					}
 					cmds = append(cmds, cmd)
 				case CommandGet:
 					cmd := GetCommand{
-						key: value.Array()[1].Bytes(), // key
+						Key: value.Array()[1].Bytes(), // key
 					}
 					cmds = append(cmds, cmd)
 				case CommandHello:
 					cmd := HelloCommand{
-						value: value.Array()[1].String(), // value
+						Value: value.Array()[1].String(), // value
 					}
 					cmds = append(cmds, cmd)
 				case CommandClient:
 					cmd := ClientCommand{
-						value: value.Array()[1].String(), // ?
+						Value: value.Array()[1].String(), // ?
 					}
 					cmds = append(cmds, cmd)
 				}
@@ -92,7 +70,7 @@ func parseREPL(raw string) ([]Command, error) {
 	}
 }
 
-func parseNilToREPL() ([]byte, error) {
+func ParseNilToREPL() ([]byte, error) {
 	var buf bytes.Buffer
 	wr := resp.NewWriter(&buf)
 	err := wr.WriteNull()
@@ -103,7 +81,7 @@ func parseNilToREPL() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func parseStringToREPL(msg string) ([]byte, error) {
+func ParseStringToREPL(msg string) ([]byte, error) {
 	var buf bytes.Buffer
 	wr := resp.NewWriter(&buf)
 	err := wr.WriteString(msg)
@@ -114,7 +92,7 @@ func parseStringToREPL(msg string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func parseMaptoREPL(msg map[string]string) []byte {
+func ParseMaptoREPL(msg map[string]string) []byte {
 	var buf bytes.Buffer
 	buf.WriteString("%" + fmt.Sprintf("%d\r\n", len(msg)))
 	wr := resp.NewWriter(&buf)

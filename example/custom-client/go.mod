@@ -1,4 +1,4 @@
-module in-memory-db-from-scratch-client
+module example-custom-client
 
 go 1.24.0
 

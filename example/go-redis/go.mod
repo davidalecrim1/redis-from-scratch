@@ -1,4 +1,4 @@
-module sample-go-redis
+module example-go-redis
 
 go 1.24.0
 

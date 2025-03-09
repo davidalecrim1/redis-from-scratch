@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"log"
 	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"redis-from-scratch/server"
 
 	"github.com/joho/godotenv"
 )
@@ -27,15 +30,19 @@ func main() {
 	level := os.Getenv("LOG_LEVEL")
 	setLogLoggerLevel(level)
 
-	s := NewServer(Config{
-		ListenAddr: ":" + port,
-	})
+	s := server.NewServer(
+		server.Config{
+			ListenAddr: ":" + port,
+		})
 
 	go gracefulShutdown(cancel)
-	err = s.Start(ctx)
-	if err != nil {
-		panic(err)
-	}
+
+	go func() {
+		err = s.Start(ctx)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
 }
 
 func gracefulShutdown(cancel context.CancelFunc) {

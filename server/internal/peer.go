@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"io"
@@ -47,7 +47,7 @@ func (p *Peer) Read() error {
 		// TODO: maybe i can increase performance using a channel to dispatch the commands to a channel
 		// one by one to be handled instead of using only a message with multiple commands
 		// Think this latter
-		cmds, err := parseREPL(string(msgBuf))
+		cmds, err := ParseREPL(string(msgBuf))
 		if err != nil {
 			slog.Error("received an error when parsing the REPL to command", "error", err)
 			return err
@@ -58,8 +58,8 @@ func (p *Peer) Read() error {
 		p.wg.Add(len(cmds)) // wait for each command to respond in write to close the connection
 
 		p.msgCh <- Message{
-			cmds: cmds,
-			peer: p,
+			Cmds: cmds,
+			Peer: p,
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+
+	"redis-from-scratch/internal"
 )
 
 const defaultPort = 6379
@@ -19,10 +21,10 @@ type Server struct {
 	Config
 	ln    net.Listener
 	mu    sync.RWMutex
-	peers map[*Peer]bool
-	delCh chan *Peer
-	msgCh chan Message
-	kvs   *KeyValueStorage
+	peers map[*internal.Peer]bool
+	delCh chan *internal.Peer
+	msgCh chan internal.Message
+	kvs   *internal.KeyValueStorage
 }
 
 func NewServer(cfg Config) *Server {
@@ -32,10 +34,10 @@ func NewServer(cfg Config) *Server {
 
 	return &Server{
 		Config: cfg,
-		peers:  make(map[*Peer]bool),
-		msgCh:  make(chan Message), // TODO: make this buffered to improve performance
-		delCh:  make(chan *Peer),
-		kvs:    NewKeyValueStorage(),
+		peers:  make(map[*internal.Peer]bool),
+		msgCh:  make(chan internal.Message), // TODO: make this buffered to improve performance
+		delCh:  make(chan *internal.Peer),
+		kvs:    internal.NewKeyValueStorage(),
 	}
 }
 
@@ -66,7 +68,7 @@ func (s *Server) acceptLoop() error {
 }
 
 func (s *Server) handleConn(conn net.Conn) {
-	peer := NewPeer(conn, s.msgCh, s.delCh)
+	peer := internal.NewPeer(conn, s.msgCh, s.delCh)
 	s.AddPeer(peer)
 
 	slog.Info("new peer connected", "remoteAddr", conn.RemoteAddr(), "localAddr", conn.LocalAddr())
@@ -78,14 +80,14 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 }
 
-func (s *Server) AddPeer(p *Peer) {
+func (s *Server) AddPeer(p *internal.Peer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.peers[p] = true
 }
 
-func (s *Server) DeletePeer(p *Peer) {
+func (s *Server) DeletePeer(p *internal.Peer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.peers, p)
@@ -122,37 +124,37 @@ func (s *Server) watchClose(ctx context.Context) {
 	}
 }
 
-func (s *Server) handleMessage(msg Message) error {
+func (s *Server) handleMessage(msg internal.Message) error {
 	// TODO: This msg.peer is bothering me. Doesnt make sense to access the peer using the msg.
 	// rethink this later
 
-	for _, cmd := range msg.cmds {
+	for _, cmd := range msg.Cmds {
 		switch receivedCmd := cmd.(type) {
-		case SetCommand:
-			err := s.kvs.Set(receivedCmd.key, receivedCmd.val)
+		case internal.SetCommand:
+			err := s.kvs.Set(receivedCmd.Key, receivedCmd.Val)
 			if err != nil {
 				slog.Error("received an error while 'setting' a value from KVS", "error", err)
 				return err
 			}
 
-			resp, err := parseStringToREPL("OK")
+			resp, err := internal.ParseStringToREPL("OK")
 			if err != nil {
 				return err
 			}
 
-			_, err = msg.peer.Send(resp)
+			_, err = msg.Peer.Send(resp)
 			return err
 
-		case GetCommand:
-			val, err := s.kvs.Get(receivedCmd.key)
+		case internal.GetCommand:
+			val, err := s.kvs.Get(receivedCmd.Key)
 			// TODO: Do I actually need to return an error here if the key is invalid?
-			if err != nil && errors.Is(err, ErrKeyDoesntExist) {
-				nilMsg, er := parseNilToREPL()
+			if err != nil && errors.Is(err, internal.ErrKeyDoesntExist) {
+				nilMsg, er := internal.ParseNilToREPL()
 				if er != nil {
 					return er
 				}
 
-				_, er = msg.peer.Send(nilMsg)
+				_, er = msg.Peer.Send(nilMsg)
 				return er
 			}
 
@@ -160,35 +162,35 @@ func (s *Server) handleMessage(msg Message) error {
 				slog.Error("received an error while 'getting' a value from KVS", "error", err)
 				return err
 			}
-			resp, err := parseStringToREPL(string(val))
+			resp, err := internal.ParseStringToREPL(string(val))
 			if err != nil {
 				return err
 			}
-			_, err = msg.peer.Send(resp)
+			_, err = msg.Peer.Send(resp)
 			return err
 
-		case PingCommand:
-			resp, err := parseStringToREPL("PONG")
+		case internal.PingCommand:
+			resp, err := internal.ParseStringToREPL("PONG")
 			if err != nil {
 				return err
 			}
-			_, err = msg.peer.Send(resp)
+			_, err = msg.Peer.Send(resp)
 			return err
 
-		case HelloCommand:
+		case internal.HelloCommand:
 			resp := map[string]string{
 				"server": "redis",
 			}
 
-			_, err := msg.peer.Send(parseMaptoREPL(resp))
+			_, err := msg.Peer.Send(internal.ParseMaptoREPL(resp))
 			return err
-		case ClientCommand:
-			resp, err := parseStringToREPL("OK")
+		case internal.ClientCommand:
+			resp, err := internal.ParseStringToREPL("OK")
 			if err != nil {
 				return err
 			}
 
-			_, err = msg.peer.Send(resp)
+			_, err = msg.Peer.Send(resp)
 			return err
 		default:
 			return fmt.Errorf("unknown command type '%v'", cmd)
@@ -196,4 +198,12 @@ func (s *Server) handleMessage(msg Message) error {
 	}
 
 	return nil
+}
+
+func (s *Server) Close() error {
+	for p := range s.peers {
+		s.DeletePeer(p)
+	}
+
+	return s.ln.Close()
 }
