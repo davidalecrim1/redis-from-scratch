@@ -68,6 +68,13 @@ In Go, you can retrieve peer addresses using:
 
 Once connected, both peers exchange data over the same TCP stream, regardless of their role as a client or server.
 
+
+## Single Threaded Event Loop
+Redis operates using a single-threaded event loop, meaning it processes one command at a time in a sequential manner. This design choice simplifies concurrency by avoiding the complexities of locks and race conditions, making it highly efficient for the I/O-bound tasks it handles. However, this approach isn’t well-suited to Go, which is built around lightweight goroutines and channels that allow concurrent execution without the need to restrict tasks to a single thread. In Go, leveraging these native concurrency features leads to more idiomatic and efficient code, rather than forcing a single-threaded event loop pattern that could undermine the advantages of the language.
+
+Therefore the goal is to leverage goroutines and channels for concorrency on the I/O bound tasks. 
+
+
 ## Further Development
 - Improve code readability
 - Improve the in and out of the GET and SET methods to use []byte instead of string
