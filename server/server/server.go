@@ -21,9 +21,7 @@ type Server struct {
 	Config
 	ln    net.Listener
 	mu    sync.RWMutex
-	peers map[*internal.Peer]bool
-	delCh chan *internal.Peer
-	msgCh chan internal.Message
+	peers map[*internal.Peer]struct{}
 	kvs   *internal.KeyValueStorage
 }
 
@@ -34,9 +32,7 @@ func NewServer(cfg Config) *Server {
 
 	return &Server{
 		Config: cfg,
-		peers:  make(map[*internal.Peer]bool),
-		msgCh:  make(chan internal.Message), // TODO: make this buffered to improve performance?
-		delCh:  make(chan *internal.Peer),
+		peers:  make(map[*internal.Peer]struct{}),
 		kvs:    internal.NewKeyValueStorage(),
 	}
 }
@@ -50,13 +46,10 @@ func (s *Server) Start(ctx context.Context) error {
 	s.ln = ln
 	slog.Info("listening tcp connection", "port:", s.ListenAddr)
 
-	go s.watchMessages(ctx)
-	go s.watchClose(ctx)
-
-	return s.acceptLoop()
+	return s.acceptConnectionsLoop()
 }
 
-func (s *Server) acceptLoop() error {
+func (s *Server) acceptConnectionsLoop() error {
 	for {
 		conn, err := s.ln.Accept()
 		if err != nil {
@@ -68,13 +61,35 @@ func (s *Server) acceptLoop() error {
 }
 
 func (s *Server) handleConn(conn net.Conn) {
-	peer := internal.NewPeer(conn, s.msgCh, s.delCh)
+	peer := internal.NewPeer(conn)
 	s.AddPeer(peer)
+	defer s.DeletePeer(peer)
 
 	slog.Info("new peer connected", "remoteAddr", conn.RemoteAddr(), "localAddr", conn.LocalAddr())
 
-	if err := peer.Read(); err != nil {
-		slog.Error("failed to read from peer", "error", err, "remoteAddr", conn.RemoteAddr(), "localAddr", conn.LocalAddr())
+	readCallback := make(chan []byte, 1)
+	go peer.Read(readCallback)
+
+outer:
+	for {
+		select {
+		case message, ok := <-readCallback:
+			if !ok {
+				slog.Debug("stoping the handle new messages")
+				break outer
+			}
+
+			response, err := s.handleMessage(message)
+			if err != nil {
+				slog.Error("received an error while handling message", "error", err)
+				return
+			}
+
+			if _, err := peer.Send(response); err != nil {
+				slog.Error("failed to write message to connection", "error", err)
+				return
+			}
+		}
 	}
 }
 
@@ -82,7 +97,7 @@ func (s *Server) AddPeer(p *internal.Peer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.peers[p] = true
+	s.peers[p] = struct{}{}
 }
 
 func (s *Server) DeletePeer(p *internal.Peer) {
@@ -91,129 +106,60 @@ func (s *Server) DeletePeer(p *internal.Peer) {
 	delete(s.peers, p)
 }
 
-func (s *Server) watchMessages(ctx context.Context) {
-	for {
-		select {
-		case msg := <-s.msgCh:
-			if err := s.handleMessage(msg); err != nil {
-				slog.Error("failed to handle message", "error", err)
-			}
-		case <-ctx.Done():
-			slog.Debug("context was canceled, closing watchMessages")
-			return
-		}
-	}
-}
-
-func (s *Server) watchClose(ctx context.Context) {
-	for {
-		select {
-		case peer, ok := <-s.delCh:
-			if !ok {
-				slog.Debug("the channel is closed")
-			}
-
-			s.DeletePeer(peer)
-			return
-		case <-ctx.Done():
-			slog.Debug("context was canceled, closing watchClose")
-			return
-		}
-	}
-}
-
-func (s *Server) handleMessage(msg internal.Message) error {
-	// TODO: This msg.peer is bothering me. Doesnt make sense to access the peer using the msg.
-	// rethink this later
-
-	for _, cmd := range msg.Cmds {
-		switch receivedCmd := cmd.(type) {
-		case internal.SetCommand:
-			err := s.kvs.Set(receivedCmd.Key, receivedCmd.Val)
-			if err != nil {
-				slog.Error("received an error while 'setting' a value from KVS", "error", err)
-				return err
-			}
-
-			resp, err := internal.ParseStringToREPL("OK")
-			if err != nil {
-				return err
-			}
-
-			_, err = msg.Peer.Send(resp)
-			return err
-
-		case internal.GetCommand:
-			// TODO: Do I actually need to return an error here if the key is invalid?
-			val, err := s.kvs.Get(receivedCmd.Key)
-
-			if err != nil && errors.Is(err, internal.ErrKeyDoesntExist) {
-				nilMsg, er := internal.ParseNilToREPL()
-				if er != nil {
-					return er
-				}
-
-				_, er = msg.Peer.Send(nilMsg)
-				return er
-			}
-
-			if err != nil {
-				slog.Error("received an error while 'getting' a value from KVS", "error", err)
-				return err
-			}
-			resp, err := internal.ParseStringToREPL(string(val))
-			if err != nil {
-				return err
-			}
-			_, err = msg.Peer.Send(resp)
-			return err
-
-		case internal.PingCommand:
-			resp, err := internal.ParseStringToREPL("PONG")
-			if err != nil {
-				return err
-			}
-			_, err = msg.Peer.Send(resp)
-			return err
-
-		case internal.HelloCommand:
-			resp := map[string]string{
-				"server": "redis",
-			}
-
-			_, err := msg.Peer.Send(internal.ParseMaptoREPL(resp))
-			return err
-
-		case internal.ClientCommand:
-			resp, err := internal.ParseStringToREPL("OK")
-			if err != nil {
-				return err
-			}
-
-			_, err = msg.Peer.Send(resp)
-			return err
-
-		case internal.EchoCommand:
-			resp, err := internal.ParseStringToREPL(receivedCmd.Value)
-			if err != nil {
-				return err
-			}
-
-			_, err = msg.Peer.Send(resp)
-			return err
-
-		default:
-			return fmt.Errorf("unknown command type '%v'", cmd)
-		}
-	}
-
-	return nil
-}
-
 func (s *Server) Close() error {
 	for p := range s.peers {
 		s.DeletePeer(p)
 	}
 
 	return s.ln.Close()
+}
+
+func (s *Server) handleMessage(message []byte) (response []byte, err error) {
+	parsedMessage, err := internal.ParseReplToCommand(string(message))
+	if err != nil {
+		return nil, err
+	}
+	switch cmd := parsedMessage.(type) {
+	case internal.SetCommand:
+		if err := s.kvs.Set(cmd.Key, cmd.Val); err != nil {
+			return nil, err
+		}
+
+		response, err := internal.ParseStringToREPL("OK")
+		if err != nil {
+			return nil, err
+		}
+
+		return response, nil
+
+	case internal.GetCommand:
+		// TODO: Do I actually need to return an error here if the key is invalid?
+		val, err := s.kvs.Get(cmd.Key)
+
+		if err != nil && errors.Is(err, internal.ErrKeyDoesntExist) {
+			slog.Error("received an error while 'getting' a value from KVS", "error", err)
+			return internal.ParseNilToREPL()
+		}
+
+		return internal.ParseStringToREPL(string(val))
+
+	case internal.PingCommand:
+		return internal.ParseStringToREPL("PONG")
+
+	case internal.HelloCommand:
+		resp := map[string]string{
+			"server": "redis",
+		}
+		return internal.ParseMaptoREPL(resp), nil
+
+	case internal.ClientCommand:
+		return internal.ParseStringToREPL("OK")
+
+	case internal.EchoCommand:
+		return internal.ParseStringToREPL(cmd.Value)
+
+	default:
+		return nil, fmt.Errorf("unknown command type '%v'", cmd)
+
+	}
 }

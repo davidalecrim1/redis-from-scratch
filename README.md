@@ -10,7 +10,6 @@ This project is a Go-based implementation of a simplified in-memory key-value st
 * **Networking:** TCP sockets
 * **Serialization:** RESP (using the `github.com/tidwall/resp` library)
 
-
 ## Project Structure
 
 The project is divided into two main components:
@@ -34,7 +33,6 @@ Second Terminal:
 make run-client
 ```
 
-
 ## Architecture
 
 The server uses a simple in-memory map to store key-value pairs. The client interacts with the server via TCP sockets, sending commands and receiving responses using the RESP protocol. Error handling is implemented to ensure robustness.
@@ -52,9 +50,9 @@ Redis clients communicate with Redis servers by sending "commands". For each com
 The response for the PING command is **+PONG\r\n**. This is the string "PONG" encoded using the Redis protocol.
 
 
-
 ### Peers in TCP Connections
 In Go, a peer refers to any entity (client or server) that participates in a TCP connection. Each peer has an associated IP address and port.
+
 
 #### Peers in a Client-Server Model
 - A client peer initiates a connection to a server peer using a TCP socket.
@@ -70,9 +68,7 @@ Once connected, both peers exchange data over the same TCP stream, regardless of
 
 
 ## Single Threaded Event Loop
-Redis operates using a single-threaded event loop, meaning it processes one command at a time in a sequential manner. This design choice simplifies concurrency by avoiding the complexities of locks and race conditions, making it highly efficient for the I/O-bound tasks it handles. However, this approach isn’t well-suited to Go, which is built around lightweight goroutines and channels that allow concurrent execution without the need to restrict tasks to a single thread. In Go, leveraging these native concurrency features leads to more idiomatic and efficient code, rather than forcing a single-threaded event loop pattern that could undermine the advantages of the language.
-
-Therefore the goal is to leverage goroutines and channels for concorrency on the I/O bound tasks. 
+Redis operates using a single-threaded event loop, meaning it processes one command at a time in a sequential manner. This design choice simplifies concurrency by avoiding the complexities of locks and race conditions, making it highly efficient for the I/O-bound tasks it handles. However, this approach isn’t well-suited to Go, which is built around lightweight goroutines and channels that allow concurrent execution without the need to restrict tasks to a single thread. In Go, leveraging these native concurrency features leads to more idiomatic and efficient code, rather than forcing a single-threaded event loop pattern that could undermine the advantages of the language. Therefore the goal is to leverage goroutines and channels for concorrency in this project.
 
 
 ## Further Development

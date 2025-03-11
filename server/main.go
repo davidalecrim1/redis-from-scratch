@@ -37,12 +37,10 @@ func main() {
 
 	go gracefulShutdown(cancel)
 
-	go func() {
-		err = s.Start(ctx)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}()
+	err = s.Start(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func gracefulShutdown(cancel context.CancelFunc) {

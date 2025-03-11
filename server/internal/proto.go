@@ -18,7 +18,7 @@ const (
 	CommandEcho   = "echo"
 )
 
-func ParseReplToCommand(raw string) ([]Command, error) {
+func ParseReplToCommand(raw string) (Command, error) {
 	cmds := make([]Command, 0, 1) // at least one command should be received
 	rd := resp.NewReader(bytes.NewBufferString(raw))
 
@@ -38,30 +38,26 @@ func ParseReplToCommand(raw string) ([]Command, error) {
 			firstArgument := strings.ToLower(value.Array()[0].String())
 			switch firstArgument {
 			case CommandSet:
-				cmd := SetCommand{
+				return SetCommand{
 					Key: value.Array()[1].Bytes(), // key
 					Val: value.Array()[2].Bytes(), // value
-				}
-				cmds = append(cmds, cmd)
+				}, nil
 			case CommandGet:
-				cmd := GetCommand{
+				return GetCommand{
 					Key: value.Array()[1].Bytes(), // key
-				}
-				cmds = append(cmds, cmd)
+				}, nil
 			case CommandHello:
-				cmd := HelloCommand{
+				return HelloCommand{
 					Value: value.Array()[1].String(), // value
-				}
-				cmds = append(cmds, cmd)
+				}, nil
 			case CommandClient:
-				cmd := ClientCommand{
+				return ClientCommand{
 					Value: value.Array()[1].String(), // ?
-				}
-				cmds = append(cmds, cmd)
+				}, nil
 			case CommandEcho:
-				cmds = append(cmds, EchoCommand{
+				return EchoCommand{
 					Value: value.Array()[1].String(), // first argument after echo
-				})
+				}, nil
 			default:
 				return nil, fmt.Errorf("command received: %v, err: %v", value.String(), ErrUnknownCommand)
 			}
@@ -70,7 +66,7 @@ func ParseReplToCommand(raw string) ([]Command, error) {
 		if value.Type() == resp.BulkString {
 			switch strings.ToLower(value.String()) {
 			case CommandPing:
-				cmds = append(cmds, PingCommand{})
+				return PingCommand{}, nil
 			default:
 				return nil, fmt.Errorf("command received: %v, err: %v", value.String(), ErrUnknownCommand)
 			}

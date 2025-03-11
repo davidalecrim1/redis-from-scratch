@@ -2,8 +2,10 @@ package e2e_test
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
+	"math/rand"
 	"os"
 	"testing"
 
@@ -27,7 +29,7 @@ func TestMain(m *testing.M) {
 
 	redisClient = redis.NewClient(
 		&redis.Options{
-			Addr:     "localhost:8103",
+			Addr:     s.ListenAddr,
 			Password: "", // no password
 			DB:       0,  // default DB
 		})
@@ -40,10 +42,12 @@ func TestMain(m *testing.M) {
 }
 
 func startRedisServer() *server.Server {
+	randomPort := rand.Intn(1000) + 6000 // random from 6000 to 6999
+
 	ctx := context.Background()
 	s := server.NewServer(
 		server.Config{
-			ListenAddr: ":" + "8103",
+			ListenAddr: fmt.Sprintf(":%d", randomPort),
 		})
 
 	go func() {

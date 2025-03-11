@@ -10,8 +10,7 @@ run-redis-client:
 	@cd example/sample-go-redis && air
 
 tests:
-	@cd server
-	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	@cd server && go test -v -coverpkg=./... -coverprofile=coverage.out ./...
 
 coverage: tests
-	go tool cover -html=coverage.out
+	@cd server && go tool cover -html=coverage.out
