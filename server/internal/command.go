@@ -6,6 +6,11 @@ type SetCommand struct {
 	Key, Val []byte
 }
 
+type SetCommandWithExpiration struct {
+	SetCommand
+	ExpireMiliseconds int
+}
+
 type GetCommand struct {
 	Key []byte
 }

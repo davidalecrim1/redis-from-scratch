@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	"github.com/tidwall/resp"
@@ -38,10 +39,23 @@ func ParseReplToCommand(raw string) (Command, error) {
 			firstArgument := strings.ToLower(value.Array()[0].String())
 			switch firstArgument {
 			case CommandSet:
-				return SetCommand{
-					Key: value.Array()[1].Bytes(), // key
-					Val: value.Array()[2].Bytes(), // value
-				}, nil
+				if len(value.Array()) == 3 {
+					return SetCommand{
+						Key: value.Array()[1].Bytes(), // key
+						Val: value.Array()[2].Bytes(), // value
+					}, nil
+				}
+
+				if len(value.Array()) == 5 && value.Array()[3].String() == "px" { // px = expire
+					expiration, _ := strconv.Atoi(value.Array()[4].String())
+					return SetCommandWithExpiration{
+						SetCommand: SetCommand{
+							Key: value.Array()[1].Bytes(), // key
+							Val: value.Array()[2].Bytes(), // value
+						},
+						ExpireMiliseconds: expiration,
+					}, nil
+				}
 			case CommandGet:
 				return GetCommand{
 					Key: value.Array()[1].Bytes(), // key

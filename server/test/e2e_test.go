@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	"redis-from-scratch/server"
 
@@ -91,6 +92,22 @@ func TestRedisOperations(t *testing.T) {
 		resp, err := redisClient.Echo(ctx, message).Result()
 		assert.Nil(t, err)
 		assert.Equal(t, resp, message)
+	})
+
+	t.Run("should be able to SET a command with expiration and NOT GET it after", func(t *testing.T) {
+		t.Parallel()
+
+		expiration := 100 * time.Millisecond
+		randomKey := fmt.Sprintf("key%d", rand.Intn(10000))
+
+		err := redisClient.Set(ctx, randomKey, "sample_value", expiration).Err()
+		assert.NoError(t, err)
+
+		time.Sleep(expiration)
+
+		val, err := redisClient.Get(ctx, randomKey).Result()
+		assert.ErrorIs(t, err, redis.Nil)
+		assert.Empty(t, val)
 	})
 
 	t.Cleanup(func() {

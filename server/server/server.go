@@ -132,6 +132,18 @@ func (s *Server) handleMessage(message []byte) (response []byte, err error) {
 
 		return response, nil
 
+	case internal.SetCommandWithExpiration:
+		if err := s.kvs.SetWithExpiration(cmd.Key, cmd.Val, cmd.ExpireMiliseconds); err != nil {
+			return nil, err
+		}
+
+		response, err := internal.ParseStringToREPL("OK")
+		if err != nil {
+			return nil, err
+		}
+
+		return response, nil
+
 	case internal.GetCommand:
 		// TODO: Do I actually need to return an error here if the key is invalid?
 		val, err := s.kvs.Get(cmd.Key)
