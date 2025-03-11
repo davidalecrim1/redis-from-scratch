@@ -19,43 +19,29 @@ const (
 	CommandEcho   = "echo"
 )
 
+// Parse the input using REPL to a command.
+// This doesn't consider receiving multiple commands at one.
 func ParseReplToCommand(raw string) (Command, error) {
-	cmds := make([]Command, 0, 1) // at least one command should be received
 	rd := resp.NewReader(bytes.NewBufferString(raw))
 
 	for {
 		value, _, err := rd.ReadValue()
 
 		if err != nil && err.Error() == "EOF" {
-			return cmds, nil
+			slog.Debug("received an EOF from the reading the commands from the message")
+			return nil, err
 		}
 
 		if err != nil {
 			slog.Error("received an unexpected error", "error", err)
-			panic(err)
+			return nil, err
 		}
 
 		if value.Type() == resp.Array {
 			firstArgument := strings.ToLower(value.Array()[0].String())
 			switch firstArgument {
 			case CommandSet:
-				if len(value.Array()) == 3 {
-					return SetCommand{
-						Key: value.Array()[1].Bytes(), // key
-						Val: value.Array()[2].Bytes(), // value
-					}, nil
-				}
-
-				if len(value.Array()) == 5 && value.Array()[3].String() == "px" { // px = expire
-					expiration, _ := strconv.Atoi(value.Array()[4].String())
-					return SetCommandWithExpiration{
-						SetCommand: SetCommand{
-							Key: value.Array()[1].Bytes(), // key
-							Val: value.Array()[2].Bytes(), // value
-						},
-						ExpireMiliseconds: expiration,
-					}, nil
-				}
+				return handleSetCommand(value)
 			case CommandGet:
 				return GetCommand{
 					Key: value.Array()[1].Bytes(), // key
@@ -86,6 +72,28 @@ func ParseReplToCommand(raw string) (Command, error) {
 			}
 		}
 	}
+}
+
+func handleSetCommand(value resp.Value) (Command, error) {
+	if len(value.Array()) == 3 {
+		return SetCommand{
+			Key: value.Array()[1].Bytes(), // key
+			Val: value.Array()[2].Bytes(), // value
+		}, nil
+	}
+
+	if len(value.Array()) == 5 && value.Array()[3].String() == "px" { // px = expire
+		expiration, _ := strconv.Atoi(value.Array()[4].String())
+		return SetCommandWithExpiration{
+			SetCommand: SetCommand{
+				Key: value.Array()[1].Bytes(), // key
+				Val: value.Array()[2].Bytes(), // value
+			},
+			ExpireMiliseconds: expiration,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("unexcepted set command format, received: %v, err: %v", value.String(), ErrUnknownCommand)
 }
 
 func ParseNilToREPL() ([]byte, error) {

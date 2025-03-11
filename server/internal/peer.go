@@ -18,7 +18,6 @@ func NewPeer(conn net.Conn) *Peer {
 	}
 }
 
-// Reads until receives an `EOF` and returns nil
 func (p *Peer) Read(readCallback chan<- []byte) {
 	buf := make([]byte, 1024)
 

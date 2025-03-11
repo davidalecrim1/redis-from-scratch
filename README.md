@@ -1,6 +1,6 @@
 # Redis from Scratch
 
-A Go Implementation of an In-Memory Key-Value Store.
+A Go Implementation of an In-Memory Key-Value Store like Redis.
 
 This project is a Go-based implementation of a simplified in-memory key-value store, inspired by the Redis database. It provides a foundational understanding of building a network server and handling the RESP protocol. This project is ideal for learning about networking, concurrency, and data structures in Go.
 
@@ -72,6 +72,4 @@ Redis operates using a single-threaded event loop, meaning it processes one comm
 
 
 ## Further Development
-- Improve code readability
-- Improve the in and out of the GET and SET methods to use []byte instead of string
-- See if there are other core features to add using Code Crafters
+- The goal is the add other core features to add using [Code Crafters](https://app.codecrafters.io/courses/redis)
