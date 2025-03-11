@@ -92,4 +92,8 @@ func TestRedisOperations(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, resp, message)
 	})
+
+	t.Cleanup(func() {
+		assert.NoError(t, redisClient.Close())
+	})
 }

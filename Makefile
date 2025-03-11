@@ -12,5 +12,5 @@ run-redis-client:
 tests:
 	@cd server && go test -v -coverpkg=./... -coverprofile=coverage.out ./...
 
-coverage: tests
+coverage:
 	@cd server && go tool cover -html=coverage.out
